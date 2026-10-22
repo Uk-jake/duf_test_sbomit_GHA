@@ -1,0 +1,51 @@
+# Test: build duf under SBOMit (witness eBPF file trace) and generate an SBOM.
+# Same steps as build.yml's Linux job, with the "Build" step replaced by the
+# sbomit-pipeline-runner action. build.yml itself is left unchanged.
+name: sbomit
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sbom:
+    # Tested runner for witness eBPF file trace (kernel 6.8).
+    # Kernel 7.0 (ubuntu-26.04, newer ubuntu-24.04 images) currently fails in go-witness.
+    runs-on: ubuntu-22.04
+    env:
+      GO111MODULE: "on"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Install Go
+        uses: actions/setup-go@v6.0.0
+        with:
+          go-version-file: go.mod
+          cache: false            # no restored module cache: the build downloads and reads deps itself
+
+      # Replaces "Download Go modules" + "Build" from build.yml.
+      # go mod download is included so that fetching dependencies is part of the observed build.
+      - name: Build under SBOMit
+        id: sbomit
+        uses: Uk-jake/sbomit-pipeline-runner@main
+        with:
+          build-command: |
+            go mod download
+            go build -v ./...
+
+      # Same as build.yml: must still work after the root-run build (file ownership is returned).
+      - name: Test
+        run: go test ./...
+
+      - name: Show SBOM summary
+        env:
+          SBOM_PATH: ${{ steps.sbomit.outputs.sbom-path }}
+        run: |
+          echo "SBOM: ${SBOM_PATH}"
+          jq -r '"\(.spdxVersion), \(.packages | length) packages"' "$SBOM_PATH"
