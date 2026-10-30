@@ -6,7 +6,8 @@ jobs:
     strategy:
       matrix:
         go-version: [~1.23, ^1]
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        # ubuntu-22.04
+        os: [ubuntu-22.04, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     env:
       GO111MODULE: "on"
@@ -15,15 +16,29 @@ jobs:
         uses: actions/setup-go@v6.0.0
         with:
           go-version: ${{ matrix.go-version }}
+          # No module cache on Linux, so the traced build downloads dependencies itself.
+          cache: ${{ runner.os != 'Linux' }}
 
       - name: Checkout code
         uses: actions/checkout@v5
 
+      # macOS / Windows: unchanged (the runner supports Linux only).
       - name: Download Go modules
+        if: runner.os != 'Linux'
         run: go mod download
 
       - name: Build
+        if: runner.os != 'Linux'
         run: go build -v ./...
+
+      # Linux: the same two commands, run under witness. Produces an attestation and an SBOM.
+      - name: Build under SBOMit
+        if: runner.os == 'Linux'
+        uses: Uk-jake/sbomit-pipeline-runner@main
+        with:
+          build-command: |
+            go mod download
+            go build -v ./...
 
       - name: Test
         run: go test ./...
