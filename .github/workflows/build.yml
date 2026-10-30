@@ -22,15 +22,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
 
-      # macOS / Windows: unchanged (the runner supports Linux only).
-      - name: Download Go modules
-        if: runner.os != 'Linux'
-        run: go mod download
-
-      - name: Build
-        if: runner.os != 'Linux'
-        run: go build -v ./...
-
       # Linux: the same two commands, run under witness. Produces an attestation and an SBOM.
       - name: Build under SBOMit
         if: runner.os == 'Linux'
